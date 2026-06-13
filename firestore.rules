@@ -1,0 +1,22 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Owner-scoped collections — a user can only touch their own docs.
+    function owns(data)    { return request.auth != null && data.uid == request.auth.uid; }
+    function creating()    { return owns(request.resource.data); }
+    function existing()    { return owns(resource.data); }
+
+    match /classes/{id}      { allow read, delete, update: if existing(); allow create: if creating(); }
+    match /groups/{id}       { allow read, delete, update: if existing(); allow create: if creating(); }
+    match /categories/{id}   { allow read, delete, update: if existing(); allow create: if creating(); }
+    match /subcategories/{id}{ allow read, delete, update: if existing(); allow create: if creating(); }
+    match /items/{id}        { allow read, delete, update: if existing(); allow create: if creating(); }
+    match /conversations/{id}{ allow read, delete, update: if existing(); allow create: if creating(); }
+
+    // Per-user settings doc — id MUST equal the user's uid.
+    match /userSettings/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+  }
+}

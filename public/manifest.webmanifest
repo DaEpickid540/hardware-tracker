@@ -1,0 +1,15 @@
+{
+  "name": "Forge — Hardware Tracker",
+  "short_name": "Forge",
+  "description": "Catalog electronics components, organize by build, and ask ARIA what you need.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#1a1a1e",
+  "theme_color": "#1a1a1e",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

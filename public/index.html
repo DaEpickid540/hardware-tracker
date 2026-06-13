@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Forge — Hardware Tracker</title>
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <meta name="theme-color" content="#1a1a1e" />
+  <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="./icon.svg" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Forge" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+  <link rel="stylesheet" href="./css/app.css" />
+</head>
+<body>
+
+  <!-- ── LOGIN GATE ─────────────────────────────────────────── -->
+  <div id="login-screen" class="login-screen">
+    <div class="login-card">
+      <div class="login-logo">
+        <span class="logo-dot"></span>
+        <span class="login-logo-name">Forge</span>
+      </div>
+      <h1 class="login-heading">Hardware Tracker</h1>
+      <p class="login-sub">Catalog your components, organize by build, and ask ARIA what you need next.</p>
+      <button id="signin-btn" class="signin-btn">
+        <i class="fa-brands fa-google"></i> Sign in with Google
+      </button>
+      <p class="login-foot"><i class="fa-solid fa-lock"></i> Your data is private to your account.</p>
+    </div>
+  </div>
+
+  <!-- ── APP SHELL ──────────────────────────────────────────── -->
+  <div id="app-shell" class="app-shell" hidden>
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-logo">
+          <span class="logo-dot"></span>
+          <span class="sidebar-logo-name">Forge</span>
+        </div>
+      </div>
+
+      <div class="sidebar-scroll">
+        <!-- Class switcher -->
+        <div class="side-section">
+          <div class="side-section-head">
+            <span>Class</span>
+            <button class="icon-btn" id="add-class-btn" title="Add class"><i class="fa-solid fa-plus"></i></button>
+          </div>
+          <button class="class-switch" id="class-switch">
+            <span class="class-switch-label"><i class="fa-solid fa-layer-group"></i> <span id="active-class-name">All Classes</span></span>
+            <i class="fa-solid fa-chevron-down"></i>
+          </button>
+          <div class="class-menu" id="class-menu" hidden></div>
+        </div>
+
+        <!-- Categories -->
+        <div class="side-section">
+          <div class="side-section-head">
+            <span>Categories</span>
+            <button class="icon-btn" id="add-category-btn" title="Add category"><i class="fa-solid fa-plus"></i></button>
+          </div>
+          <nav class="cat-nav" id="cat-nav"></nav>
+        </div>
+      </div>
+
+      <!-- Groups box (opens management/filter modal) -->
+      <button class="group-box" id="group-box">
+        <span class="group-box-icon"><i class="fa-solid fa-folder-tree"></i></span>
+        <span class="group-box-text">
+          <span class="group-box-label">Group</span>
+          <span class="group-box-name" id="group-box-name">All Groups</span>
+        </span>
+        <i class="fa-solid fa-sliders group-box-arrow"></i>
+      </button>
+
+      <div class="sidebar-footer">
+        <button class="nav-item" id="settings-btn"><i class="fa-solid fa-gear nav-icon"></i><span>Settings</span></button>
+        <button class="nav-item" id="signout-btn"><i class="fa-solid fa-right-from-bracket nav-icon"></i><span>Sign out</span></button>
+      </div>
+    </aside>
+
+    <!-- mobile sidebar overlay -->
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+    <!-- MAIN -->
+    <main class="main-area">
+      <!-- top row: search + ARIA toggle -->
+      <div class="top-row">
+        <button class="mobile-menu-btn" id="mobile-menu-btn" title="Menu"><i class="fa-solid fa-bars"></i></button>
+        <div class="search-box">
+          <i class="fa-solid fa-magnifying-glass search-box-icon"></i>
+          <input id="search-input" class="search-box-input" type="text" placeholder="Search components, info, links…" />
+        </div>
+        <button class="aria-toggle" id="aria-toggle">
+          <i class="fa-solid fa-robot"></i> <span>ARIA</span>
+        </button>
+      </div>
+
+      <!-- class filter chips (shown in "All Classes" view) -->
+      <div class="chip-row" id="class-chip-row" hidden></div>
+
+      <!-- current view heading -->
+      <div class="view-head">
+        <h2 id="view-title">All Components</h2>
+        <button class="btn btn--primary" id="add-item-btn"><i class="fa-solid fa-plus"></i> Add Option</button>
+      </div>
+
+      <!-- option grid -->
+      <div class="option-grid" id="option-grid"></div>
+      <div class="empty-grid" id="empty-grid" hidden></div>
+
+      <!-- ARIA panel (expands under the options) -->
+      <section class="aria-panel" id="aria-panel" hidden>
+        <div class="aria-panel-head">
+          <div class="aria-panel-title"><i class="fa-solid fa-robot"></i> ARIA Assistant</div>
+          <div class="aria-panel-actions">
+            <button class="icon-btn" id="aria-new" title="New chat"><i class="fa-solid fa-plus"></i></button>
+            <button class="icon-btn" id="aria-history-btn" title="History"><i class="fa-solid fa-clock-rotate-left"></i></button>
+            <button class="icon-btn" id="aria-close" title="Close"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+        </div>
+        <div class="aria-history" id="aria-history" hidden></div>
+        <div class="aria-messages" id="aria-messages"></div>
+        <div class="aria-suggest" id="aria-suggest"></div>
+        <form class="aria-input-row" id="aria-form">
+          <input id="aria-input" class="aria-input" type="text" autocomplete="off"
+            placeholder="e.g. What do I need to wire an 18650 pack to an ESP32?" />
+          <button class="btn btn--primary" type="submit" id="aria-send"><i class="fa-solid fa-paper-plane"></i></button>
+        </form>
+      </section>
+    </main>
+  </div>
+
+  <!-- ── MODAL HOST ─────────────────────────────────────────── -->
+  <div id="modal-host"></div>
+  <div id="toast-container" class="toast-container"></div>
+
+  <script type="module" src="./js/app.js"></script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#1a1a1e"/>
+  <circle cx="256" cy="150" r="26" fill="#e74c3c">
+    <animate attributeName="opacity" values="1;0.5;1" dur="2s" repeatCount="indefinite"/>
+  </circle>
+  <text x="256" y="370" font-family="Georgia, 'DM Serif Display', serif" font-size="240"
+        fill="#f0f0f0" text-anchor="middle">F</text>
+  <rect x="96" y="96" width="320" height="320" rx="72" fill="none" stroke="#2d2d38" stroke-width="6"/>
+</svg>

@@ -276,6 +276,7 @@ function optionCard(i) {
     ? `<div class="option-card-embed">
          <iframe src="${esc(embedUrl)}" loading="lazy" referrerpolicy="no-referrer"
            sandbox="allow-scripts allow-same-origin allow-popups allow-forms"></iframe>
+         <button class="embed-expand" title="Expand to read"><span class="embed-expand-hint"><i class="fa-solid fa-expand"></i> Tap to expand</span></button>
          <a class="embed-open" href="${esc(embedUrl)}" target="_blank" rel="noopener" title="Open in new tab"><i class="fa-solid fa-up-right-from-square"></i></a>
        </div>`
     : (i.photoUrl
@@ -320,7 +321,27 @@ function optionCard(i) {
   card.querySelector(".group").onclick = () => groupAssignModal(i);
   card.querySelector(".edit").onclick = () => itemModal(i);
   card.querySelector(".del").onclick = () => confirmDelete(`Delete “${i.name}”?`, () => store.deleteItem(i.id));
+  const exp = card.querySelector(".embed-expand");
+  if (exp) exp.onclick = () => embedModal(embedUrl, i.name);
   return card;
+}
+
+// ── Embed modal (big iframe to read specs in place) ──────────
+function embedModal(url, title) {
+  const m = el("div", "modal modal--embed");
+  m.innerHTML = `
+    <div class="modal-head">
+      <div class="modal-title">${esc(title)}</div>
+      <div class="embed-head-actions">
+        <a class="icon-btn" href="${esc(url)}" target="_blank" rel="noopener" title="Open in new tab"><i class="fa-solid fa-up-right-from-square"></i></a>
+        <button class="modal-close" title="Close"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+    </div>
+    <div class="embed-modal-body">
+      <iframe src="${esc(url)}" referrerpolicy="no-referrer" sandbox="allow-scripts allow-same-origin allow-popups allow-forms"></iframe>
+    </div>`;
+  const overlay = openModal(m);
+  m.querySelector(".modal-close").onclick = () => overlay.remove();
 }
 
 // ── Add-to-group modal (multi-select for one item) ───────────

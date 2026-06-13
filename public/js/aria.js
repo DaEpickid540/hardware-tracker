@@ -12,6 +12,29 @@ export const PROVIDERS = {
   groq:      { label: "Groq",               defaultModel: "llama-3.3-70b-versatile" },
 };
 
+// Optional web-search providers that augment ARIA with live results.
+export const SEARCH_PROVIDERS = {
+  none:   { label: "Off" },
+  tavily: { label: "Tavily", keyId: "tavily" },
+};
+
+// Tavily search → returns a context block to inject into the system prompt.
+async function tavilySearch(key, query) {
+  const res = await fetch("https://api.tavily.com/search", {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
+    body: JSON.stringify({ query, max_results: 5, search_depth: "basic", include_answer: true }),
+  });
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(d?.error || d?.detail || `Tavily ${res.status}`);
+  const lines = [`LIVE WEB SEARCH (Tavily) for "${query}":`];
+  if (d.answer) lines.push(`Summary: ${d.answer}`);
+  (d.results || []).forEach((r, i) =>
+    lines.push(`${i + 1}. ${r.title} — ${r.url}\n   ${(r.content || "").slice(0, 300)}`));
+  lines.push("Use these results when relevant and cite the URLs.");
+  return lines.join("\n");
+}
+
 function systemPrompt(inventory) {
   let inv = "The user's current inventory is empty.";
   if (inventory && inventory.length) {
@@ -95,13 +118,22 @@ async function callGemini(key, model, sys, history) {
   return data.candidates?.[0]?.content?.parts?.map((p) => p.text).join("") || "";
 }
 
-// Public: ask ARIA. `settings` = { aiProvider, apiKeys:{}, models:{} }
+// Public: ask ARIA. `settings` = { aiProvider, apiKeys:{}, models:{}, searchProvider }
 export async function ask(settings, history, inventory) {
   const provider = settings.aiProvider || "anthropic";
   const key   = settings.apiKeys?.[provider];
   if (!key) throw new Error(`No API key set for ${PROVIDERS[provider].label}. Open Settings to add one.`);
   const model = settings.models?.[provider] || PROVIDERS[provider].defaultModel;
-  const sys   = systemPrompt(inventory);
+  let sys     = systemPrompt(inventory);
+
+  // optional live web search augmentation
+  if (settings.searchProvider === "tavily" && settings.apiKeys?.tavily) {
+    const q = [...history].reverse().find((m) => m.role === "user")?.content;
+    if (q) {
+      try { sys += "\n\n" + await tavilySearch(settings.apiKeys.tavily, q); }
+      catch (e) { sys += `\n\n(Web search unavailable: ${e.message})`; }
+    }
+  }
 
   if (provider === "anthropic") return callAnthropic(key, model, sys, history);
   if (provider === "openai")    return callOpenAI(key, model, sys, history);

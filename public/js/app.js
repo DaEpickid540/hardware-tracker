@@ -2,13 +2,16 @@
 //  app.js — Forge Hardware Tracker UI controller
 // ============================================================
 import * as store from "./store.js";
-import { ask, PROVIDERS } from "./aria.js";
+import { ask, PROVIDERS, SEARCH_PROVIDERS } from "./aria.js";
+import { encryptString, decryptString, isEncrypted } from "./crypto.js";
 
 // ── App state ────────────────────────────────────────────────
 const state = {
   classes: [], groups: [], categories: [], subcategories: [], items: [], conversations: [],
   expandedCats: new Set(),  // which categories are expanded to show subcategories
   settings: {},
+  decryptedKeys: {},        // in-memory plaintext keys when encryption is unlocked
+  keyPass: null, unlocked: false,
   activeClassId: "all",        // "all" or a class id
   activeGroupId: "all",        // "all" or a group id (sidebar category filter)
   activeCategoryId: "all",     // "all" or a category id
@@ -713,11 +716,68 @@ function confirmDelete(msg, onYes) {
 
 // ── Settings modal ───────────────────────────────────────────
 $("#settings-btn").onclick = () => settingsModal();
+
+// ── Passphrase / key-encryption helpers ──────────────────────
+function promptPassphrase(title, confirm) {
+  return new Promise((resolve) => {
+    const m = modalShell(title, `
+      <div class="form-group"><label class="form-label">Passphrase</label>
+        <input class="text-input" id="pp1" type="password" autocomplete="off"></div>
+      ${confirm ? `<div class="form-group"><label class="form-label">Confirm passphrase</label>
+        <input class="text-input" id="pp2" type="password" autocomplete="off"></div>` : ""}
+      <p class="form-hint">Never stored anywhere. You re-enter it once per device/session to use ARIA. If you forget it, just re-enter your API keys.</p>`);
+    const overlay = openModal(m);
+    const done = (v) => { overlay.remove(); resolve(v); };
+    const foot = m.querySelector(".modal-foot");
+    const cancel = el("button", "btn btn--ghost", "Cancel"); cancel.onclick = () => done(null);
+    const ok = el("button", "btn btn--primary", confirm ? "Set passphrase" : "Unlock");
+    ok.onclick = () => {
+      const a = m.querySelector("#pp1").value;
+      if (!a) return toast("Enter a passphrase", "danger");
+      if (confirm && a !== m.querySelector("#pp2").value) return toast("Passphrases don't match", "danger");
+      done(a);
+    };
+    m.querySelector(".modal-close").onclick = () => done(null);
+    foot.append(cancel, ok);
+  });
+}
+
+// Decrypt every stored key blob with the passphrase (throws if wrong).
+async function unlockKeys(pass) {
+  const out = {};
+  for (const [pid, val] of Object.entries(state.settings.apiKeys || {})) {
+    if (isEncrypted(val)) out[pid] = await decryptString(val, pass);
+    else if (typeof val === "string") out[pid] = val;
+  }
+  return out;
+}
+
+// Returns settings with PLAINTEXT keys ready for ARIA. Prompts to unlock if needed.
+async function ensureUnlocked() {
+  if (!state.settings.encrypted) return state.settings;
+  if (!state.unlocked) {
+    const pass = await promptPassphrase("Unlock API keys", false);
+    if (!pass) throw new Error("Passphrase required to unlock your API key.");
+    try { state.decryptedKeys = await unlockKeys(pass); }
+    catch { throw new Error("Wrong passphrase — couldn't unlock your keys."); }
+    state.keyPass = pass; state.unlocked = true;
+  }
+  return { ...state.settings, apiKeys: state.decryptedKeys };
+}
+
 function settingsModal() {
   const s = state.settings;
   let prov = s.aiProvider || "anthropic";
-  const keys = s.apiKeys || {};
-  const models = s.models || {};
+  let searchProv = s.searchProvider || "none";
+  let theme = s.theme || "dark";
+  let encState = !!s.encrypted;
+  const models = { ...(s.models || {}) };
+  // plaintext keys the user is editing (blobs are only revealed after Unlock)
+  let editKeys = encState ? { ...state.decryptedKeys } : { ...(s.apiKeys || {}) };
+  const keyPlaceholder = (pid) =>
+    (encState && !editKeys[pid] && isEncrypted(s.apiKeys?.[pid]))
+      ? "•••• encrypted — Unlock to edit, or type a new key" : "Paste your API key";
+
   const m = modalShell("Settings", `
     <div class="settings-section">
       <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:8px">
@@ -727,20 +787,47 @@ function settingsModal() {
       </div>
       <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:8px">
         <div class="settings-label">API key — <span id="prov-label">${PROVIDERS[prov].label}</span></div>
-        <input class="text-input" id="f-key" type="password" placeholder="Paste your API key" value="${esc(keys[prov] || "")}">
+        <input class="text-input" id="f-key" type="password" placeholder="${keyPlaceholder(prov)}" value="${esc(editKeys[prov] || "")}">
         <input class="text-input" id="f-model" placeholder="Model (default: ${PROVIDERS[prov].defaultModel})" value="${esc(models[prov] || "")}">
-        <div class="key-warn"><i class="fa-solid fa-triangle-exclamation"></i> Keys are saved to your account so you can sign in anywhere. They are private to you (Firestore rules), but stored unencrypted — use a key scoped to this app, not a shared secret.</div>
       </div>
     </div>
+
+    <div class="settings-section">
+      <div class="settings-row">
+        <div><div class="settings-label">Encrypt API keys</div>
+          <div class="settings-hint">Zero-knowledge AES-GCM. Keys become unreadable in the database without your passphrase — entered once per device/session.</div></div>
+        <div class="seg" id="f-enc">
+          <button class="seg-opt ${encState ? "" : "active"}" data-enc="off">Off</button>
+          <button class="seg-opt ${encState ? "active" : ""}" data-enc="on">On</button>
+        </div>
+      </div>
+      <div class="settings-row" id="enc-pass-row" ${encState ? "" : "hidden"} style="flex-direction:column;align-items:stretch;gap:8px">
+        <div class="settings-label">Passphrase</div>
+        <input class="text-input" id="f-pass" type="password" autocomplete="off" placeholder="${s.encrypted ? "Re-enter to save key changes" : "Choose a passphrase"}">
+        <button class="btn btn--ghost btn--sm" id="unlock-btn" ${s.encrypted && !state.unlocked ? "" : "hidden"}><i class="fa-solid fa-lock-open"></i> Unlock to edit keys</button>
+      </div>
+      <div class="settings-row"><div class="key-warn" style="width:100%"><i class="fa-solid fa-triangle-exclamation"></i> <span id="enc-note"></span></div></div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:8px">
+        <div><div class="settings-label">Web search (optional)</div>
+          <div class="settings-hint">Let ARIA pull live results — current parts, prices, datasheets — before it answers. <a href="https://tavily.com" target="_blank" rel="noopener">Tavily</a> has a free tier.</div></div>
+        <div id="sel-search"></div>
+        <input class="text-input" id="f-search-key" type="password" placeholder="Tavily API key (tvly-…)" ${searchProv === "none" ? "hidden" : ""} value="${esc(editKeys.tavily || "")}">
+      </div>
+    </div>
+
     <div class="settings-section">
       <div class="settings-row">
         <div><div class="settings-label">Theme</div><div class="settings-hint">Dark cyberpunk or light.</div></div>
         <div class="seg" id="f-theme">
-          <button class="seg-opt ${(s.theme||"dark")==="dark"?"active":""}" data-theme="dark">Dark</button>
-          <button class="seg-opt ${s.theme==="light"?"active":""}" data-theme="light">Light</button>
+          <button class="seg-opt ${theme === "dark" ? "active" : ""}" data-theme="dark">Dark</button>
+          <button class="seg-opt ${theme === "light" ? "active" : ""}" data-theme="light">Light</button>
         </div>
       </div>
     </div>
+
     <div class="settings-section">
       <div class="settings-row" style="flex-direction:column;align-items:stretch;gap:10px">
         <div><div class="settings-label">Inventory export</div>
@@ -756,20 +843,61 @@ function settingsModal() {
 
   const keyIn = m.querySelector("#f-key");
   const modelIn = m.querySelector("#f-model");
+  const passRow = m.querySelector("#enc-pass-row");
+  const passIn = m.querySelector("#f-pass");
+  const unlockBtn = m.querySelector("#unlock-btn");
+  const searchKeyIn = m.querySelector("#f-search-key");
+  const encNote = m.querySelector("#enc-note");
+  const setEncNote = () => {
+    encNote.textContent = encState
+      ? "Keys are encrypted with your passphrase — unreadable in the database without it."
+      : "Keys are saved to your account (private via Firestore rules) but stored unencrypted. Turn this on for at-rest encryption.";
+  };
+  setEncNote();
+
   const provSel = makeSelect(
     Object.entries(PROVIDERS).map(([id, p]) => ({ value: id, label: p.label })),
     prov, (v) => {
       prov = v;
       m.querySelector("#prov-label").textContent = PROVIDERS[v].label;
-      keyIn.value = keys[v] || "";
+      keyIn.value = editKeys[v] || "";
+      keyIn.placeholder = keyPlaceholder(v);
       modelIn.value = models[v] || "";
       modelIn.placeholder = `Model (default: ${PROVIDERS[v].defaultModel})`;
     });
   m.querySelector("#sel-provider").appendChild(provSel);
-  keyIn.oninput   = () => { keys[prov] = keyIn.value.trim(); };
+  keyIn.oninput   = () => { editKeys[prov] = keyIn.value.trim(); };
   modelIn.oninput = () => { models[prov] = modelIn.value.trim(); };
 
-  let theme = s.theme || "dark";
+  const searchSel = makeSelect(
+    Object.entries(SEARCH_PROVIDERS).map(([id, p]) => ({ value: id, label: p.label })),
+    searchProv, (v) => { searchProv = v; searchKeyIn.hidden = (v === "none"); });
+  m.querySelector("#sel-search").appendChild(searchSel);
+  searchKeyIn.oninput = () => { editKeys.tavily = searchKeyIn.value.trim(); };
+
+  // encryption on/off toggle
+  m.querySelectorAll("#f-enc .seg-opt").forEach((b) => b.onclick = () => {
+    m.querySelectorAll("#f-enc .seg-opt").forEach((x) => x.classList.remove("active"));
+    b.classList.add("active"); encState = b.dataset.enc === "on";
+    passRow.hidden = !encState;
+    unlockBtn.hidden = !(encState && s.encrypted && !state.unlocked);
+    keyIn.placeholder = keyPlaceholder(prov);
+    setEncNote();
+  });
+
+  // unlock existing encrypted keys for editing
+  unlockBtn.onclick = async () => {
+    const pass = await promptPassphrase("Unlock API keys", false);
+    if (!pass) return;
+    try { state.decryptedKeys = await unlockKeys(pass); }
+    catch { return toast("Wrong passphrase", "danger"); }
+    state.keyPass = pass; state.unlocked = true;
+    editKeys = { ...editKeys, ...state.decryptedKeys };
+    keyIn.value = editKeys[prov] || ""; searchKeyIn.value = editKeys.tavily || "";
+    passIn.value = pass; unlockBtn.hidden = true;
+    toast("Keys unlocked", "success");
+  };
+
   m.querySelectorAll("#f-theme .seg-opt").forEach((b) => b.onclick = () => {
     m.querySelectorAll("#f-theme .seg-opt").forEach((x) => x.classList.remove("active"));
     b.classList.add("active"); theme = b.dataset.theme;
@@ -783,9 +911,33 @@ function settingsModal() {
   const foot = m.querySelector(".modal-foot");
   const save = el("button", "btn btn--primary", "Save");
   save.onclick = async () => {
-    keys[prov] = keyIn.value.trim();
+    editKeys[prov] = keyIn.value.trim();
     models[prov] = modelIn.value.trim();
-    const patch = { aiProvider: prov, apiKeys: keys, models, theme };
+    if (searchKeyIn.value.trim()) editKeys.tavily = searchKeyIn.value.trim();
+
+    const outKeys = {};
+    if (encState) {
+      const pass = passIn.value || state.keyPass;
+      if (!pass) { toast("Enter a passphrase to encrypt your keys", "danger"); return; }
+      const ids = new Set([...Object.keys(editKeys), ...Object.keys(s.apiKeys || {})]);
+      for (const pid of ids) {
+        const plain = editKeys[pid];
+        if (plain && plain.length) outKeys[pid] = await encryptString(plain, pass);
+        else if (!state.unlocked && isEncrypted(s.apiKeys?.[pid])) outKeys[pid] = s.apiKeys[pid]; // keep un-retyped locked key
+      }
+      state.keyPass = pass; state.unlocked = true;
+      state.decryptedKeys = Object.fromEntries(Object.entries(editKeys).filter(([, v]) => v && v.length));
+    } else {
+      if (s.encrypted && !state.unlocked) { toast("Unlock your keys first to turn encryption off", "danger"); return; }
+      const ids = new Set([...Object.keys(editKeys), ...Object.keys(state.decryptedKeys || {})]);
+      for (const pid of ids) {
+        const plain = editKeys[pid] ?? state.decryptedKeys[pid];
+        if (plain && plain.length) outKeys[pid] = plain;
+      }
+      state.decryptedKeys = {}; state.keyPass = null; state.unlocked = false;
+    }
+
+    const patch = { aiProvider: prov, apiKeys: outKeys, models, theme, searchProvider: searchProv, encrypted: encState };
     state.settings = { ...state.settings, ...patch };
     await store.saveSettings(patch);
     overlay.remove(); toast("Settings saved", "success");
@@ -920,7 +1072,8 @@ async function sendAria(text) {
   state.aria.busy = true; $("#aria-send").disabled = true;
 
   try {
-    const reply = await ask(state.settings, state.aria.messages, buildInventory());
+    const eff = await ensureUnlocked();   // resolves plaintext keys if encryption is on
+    const reply = await ask(eff, state.aria.messages, buildInventory());
     thinking.remove();
     state.aria.messages.push({ role: "assistant", content: reply });
     renderAria();

@@ -1,8 +1,8 @@
 // Forge service worker — offline app shell, network-first for same-origin.
-const CACHE = "forge-v1";
+const CACHE = "forge-v2";
 const CORE = [
   "./", "./index.html", "./manifest.webmanifest", "./icon.svg",
-  "./css/app.css", "./js/app.js", "./js/store.js", "./js/aria.js", "./js/firebase-config.js",
+  "./css/app.css", "./js/app.js", "./js/store.js", "./js/aria.js", "./js/crypto.js", "./js/firebase-config.js",
 ];
 
 self.addEventListener("install", (e) => {

@@ -154,6 +154,22 @@ export async function getSettings() {
     getDoc(doc(db, "user_preferences", uid())),
     getDoc(doc(db, "user_apikeys", uid())),
   ]);
+
+  // One-time self-migration: settings written before this split still live in
+  // hw_userSettings. If the new docs don't exist yet, read the old doc once,
+  // copy it into the new collections, and keep using it going forward — no
+  // Admin SDK migration script needed, and the account never appears to lose
+  // its saved keys/theme when this shipped.
+  if (!prefsSnap.exists() && !keysSnap.exists()) {
+    const legacySnap = await getDoc(doc(db, "hw_userSettings", uid()));
+    if (legacySnap.exists()) {
+      const legacy = legacySnap.data();
+      const { apiKeys, encrypted, ...prefs } = legacy;
+      await saveSettings({ ...prefs, apiKeys: apiKeys || {}, encrypted: encrypted || false });
+      return { ...prefs, apiKeys: apiKeys || {}, encrypted: encrypted || false };
+    }
+  }
+
   const prefs = prefsSnap.exists() ? prefsSnap.data() : {};
   const keysDoc = keysSnap.exists() ? keysSnap.data() : {};
   return { ...prefs, apiKeys: keysDoc.keys || {}, encrypted: keysDoc.encrypted || false };

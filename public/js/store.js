@@ -39,13 +39,13 @@ function liveCollection(name, cb) {
   }, (err) => console.error(`[${name}]`, err));
 }
 
-export const watchClasses       = (cb) => liveCollection("classes", cb);
-export const watchGroups        = (cb) => liveCollection("groups", cb);
-export const watchCategories    = (cb) => liveCollection("categories", cb);
-export const watchSubcategories = (cb) => liveCollection("subcategories", cb);
+export const watchClasses       = (cb) => liveCollection("hw_classes", cb);
+export const watchGroups        = (cb) => liveCollection("hw_groups", cb);
+export const watchCategories    = (cb) => liveCollection("hw_categories", cb);
+export const watchSubcategories = (cb) => liveCollection("hw_subcategories", cb);
 
 export function watchItems(cb) {
-  const q = query(collection(db, "items"), where("uid", "==", uid()));
+  const q = query(collection(db, "hw_items"), where("uid", "==", uid()));
   return onSnapshot(q, (snap) => {
     const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     rows.sort((a, b) =>
@@ -57,51 +57,51 @@ export function watchItems(cb) {
 
 // ── Classes ──────────────────────────────────────────────────
 export function addClass(data) {
-  return addDoc(collection(db, "classes"), {
+  return addDoc(collection(db, "hw_classes"), {
     uid: uid(), name: data.name, color: data.color || "#e74c3c",
     icon: data.icon || "fa-layer-group", order: data.order ?? Date.now(),
     createdAtMs: Date.now(), createdAt: serverTimestamp(),
   });
 }
-export const updateClass = (id, patch) => updateDoc(doc(db, "classes", id), patch);
-export const deleteClass = (id) => deleteDoc(doc(db, "classes", id));
+export const updateClass = (id, patch) => updateDoc(doc(db, "hw_classes", id), patch);
+export const deleteClass = (id) => deleteDoc(doc(db, "hw_classes", id));
 
 // ── Groups (sidebar subsections) ─────────────────────────────
 export function addGroup(data) {
-  return addDoc(collection(db, "groups"), {
+  return addDoc(collection(db, "hw_groups"), {
     uid: uid(), name: data.name, order: data.order ?? Date.now(),
     createdAtMs: Date.now(), createdAt: serverTimestamp(),
   });
 }
-export const updateGroup = (id, patch) => updateDoc(doc(db, "groups", id), patch);
-export const deleteGroup = (id) => deleteDoc(doc(db, "groups", id));
+export const updateGroup = (id, patch) => updateDoc(doc(db, "hw_groups", id), patch);
+export const deleteGroup = (id) => deleteDoc(doc(db, "hw_groups", id));
 
 // ── Categories ───────────────────────────────────────────────
 export function addCategory(data) {
-  return addDoc(collection(db, "categories"), {
+  return addDoc(collection(db, "hw_categories"), {
     uid: uid(), name: data.name, icon: data.icon || "fa-microchip",
     groupId: data.groupId || null,
     order: data.order ?? Date.now(),
     createdAtMs: Date.now(), createdAt: serverTimestamp(),
   });
 }
-export const updateCategory = (id, patch) => updateDoc(doc(db, "categories", id), patch);
-export const deleteCategory = (id) => deleteDoc(doc(db, "categories", id));
+export const updateCategory = (id, patch) => updateDoc(doc(db, "hw_categories", id), patch);
+export const deleteCategory = (id) => deleteDoc(doc(db, "hw_categories", id));
 
 // ── Subcategories (nested under a category) ──────────────────
 export function addSubcategory(data) {
-  return addDoc(collection(db, "subcategories"), {
+  return addDoc(collection(db, "hw_subcategories"), {
     uid: uid(), name: data.name, categoryId: data.categoryId,
     order: data.order ?? Date.now(),
     createdAtMs: Date.now(), createdAt: serverTimestamp(),
   });
 }
-export const updateSubcategory = (id, patch) => updateDoc(doc(db, "subcategories", id), patch);
-export const deleteSubcategory = (id) => deleteDoc(doc(db, "subcategories", id));
+export const updateSubcategory = (id, patch) => updateDoc(doc(db, "hw_subcategories", id), patch);
+export const deleteSubcategory = (id) => deleteDoc(doc(db, "hw_subcategories", id));
 
 // ── Items (the "Options") ────────────────────────────────────
 export function addItem(data) {
-  return addDoc(collection(db, "items"), {
+  return addDoc(collection(db, "hw_items"), {
     uid: uid(),
     categoryId:    data.categoryId    || null,
     subcategoryId: data.subcategoryId || null,
@@ -120,23 +120,23 @@ export function addItem(data) {
   });
 }
 export const updateItem = (id, patch) =>
-  updateDoc(doc(db, "items", id), { ...patch, updatedAt: serverTimestamp() });
-export const deleteItem = (id) => deleteDoc(doc(db, "items", id));
-export const togglePin  = (id, pinned) => updateDoc(doc(db, "items", id), { pinned });
+  updateDoc(doc(db, "hw_items", id), { ...patch, updatedAt: serverTimestamp() });
+export const deleteItem = (id) => deleteDoc(doc(db, "hw_items", id));
+export const togglePin  = (id, pinned) => updateDoc(doc(db, "hw_items", id), { pinned });
 
 // ── Settings (AI provider + keys + theme) ────────────────────
 //  Stored per-user so you can sign in anywhere and keep your setup.
 export async function getSettings() {
-  const snap = await getDoc(doc(db, "userSettings", uid()));
+  const snap = await getDoc(doc(db, "hw_userSettings", uid()));
   return snap.exists() ? snap.data() : {};
 }
 export function saveSettings(patch) {
-  return setDoc(doc(db, "userSettings", uid()), patch, { merge: true });
+  return setDoc(doc(db, "hw_userSettings", uid()), patch, { merge: true });
 }
 
 // ── ARIA conversations ───────────────────────────────────────
 export function watchConversations(cb) {
-  const q = query(collection(db, "conversations"), where("uid", "==", uid()));
+  const q = query(collection(db, "hw_conversations"), where("uid", "==", uid()));
   return onSnapshot(q, (snap) => {
     const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     rows.sort((a, b) => (b.updatedAtMs ?? 0) - (a.updatedAtMs ?? 0));
@@ -144,7 +144,7 @@ export function watchConversations(cb) {
   }, (err) => console.error("[conversations]", err));
 }
 export function createConversation(title) {
-  return addDoc(collection(db, "conversations"), {
+  return addDoc(collection(db, "hw_conversations"), {
     uid: uid(), title: title || "New chat", messages: [],
     createdAtMs: Date.now(), updatedAtMs: Date.now(),
   });
@@ -152,6 +152,6 @@ export function createConversation(title) {
 export function saveConversation(id, messages, title) {
   const patch = { messages, updatedAtMs: Date.now() };
   if (title) patch.title = title;
-  return updateDoc(doc(db, "conversations", id), patch);
+  return updateDoc(doc(db, "hw_conversations", id), patch);
 }
-export const deleteConversation = (id) => deleteDoc(doc(db, "conversations", id));
+export const deleteConversation = (id) => deleteDoc(doc(db, "hw_conversations", id));

@@ -26,6 +26,25 @@ export function currentUser() { return auth.currentUser; }
 
 const uid = () => auth.currentUser?.uid;
 
+// Unified cross-app identity doc — shared with GRIND and ARIA. See
+// ../../../personal-suite-schema.md §2. Creates on first sign-in, refreshes
+// lastSeenAt + apps.hardware on every subsequent one.
+export async function upsertUnifiedUser(user) {
+  const ref  = doc(db, "users", user.uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) {
+    await setDoc(ref, {
+      uid: user.uid, email: user.email || null,
+      displayName: user.displayName, photoURL: user.photoURL,
+      customPhotoURL: null,
+      apps: { grind: false, hardware: true, aria: false },
+      createdAt: serverTimestamp(), lastSeenAt: serverTimestamp(),
+    });
+  } else {
+    await updateDoc(ref, { "apps.hardware": true, lastSeenAt: serverTimestamp() });
+  }
+}
+
 // ── Live collection subscriptions ────────────────────────────
 // Each returns an unsubscribe fn. We sort client-side to avoid
 // requiring composite Firestore indexes for first run.
@@ -125,13 +144,33 @@ export const deleteItem = (id) => deleteDoc(doc(db, "hw_items", id));
 export const togglePin  = (id, pinned) => updateDoc(doc(db, "hw_items", id), { pinned });
 
 // ── Settings (AI provider + keys + theme) ────────────────────
-//  Stored per-user so you can sign in anywhere and keep your setup.
+//  Split across the shared personal-suite collections (see
+//  ../../../personal-suite-schema.md §3) so GRIND and ARIA can read/write the
+//  same theme/provider prefs and encrypted key store instead of each app
+//  keeping its own copy. External shape is unchanged — callers still get one
+//  flat { theme, aiProvider, models, searchProvider, apiKeys, encrypted } object.
 export async function getSettings() {
-  const snap = await getDoc(doc(db, "hw_userSettings", uid()));
-  return snap.exists() ? snap.data() : {};
+  const [prefsSnap, keysSnap] = await Promise.all([
+    getDoc(doc(db, "user_preferences", uid())),
+    getDoc(doc(db, "user_apikeys", uid())),
+  ]);
+  const prefs = prefsSnap.exists() ? prefsSnap.data() : {};
+  const keysDoc = keysSnap.exists() ? keysSnap.data() : {};
+  return { ...prefs, apiKeys: keysDoc.keys || {}, encrypted: keysDoc.encrypted || false };
 }
 export function saveSettings(patch) {
-  return setDoc(doc(db, "hw_userSettings", uid()), patch, { merge: true });
+  const { apiKeys, encrypted, ...prefs } = patch;
+  const writes = [];
+  if (Object.keys(prefs).length) {
+    writes.push(setDoc(doc(db, "user_preferences", uid()), { ...prefs, updatedAt: serverTimestamp() }, { merge: true }));
+  }
+  if (apiKeys !== undefined || encrypted !== undefined) {
+    const keysPatch = { updatedAt: serverTimestamp() };
+    if (apiKeys !== undefined) keysPatch.keys = apiKeys;
+    if (encrypted !== undefined) keysPatch.encrypted = encrypted;
+    writes.push(setDoc(doc(db, "user_apikeys", uid()), keysPatch, { merge: true }));
+  }
+  return Promise.all(writes);
 }
 
 // ── ARIA conversations ───────────────────────────────────────

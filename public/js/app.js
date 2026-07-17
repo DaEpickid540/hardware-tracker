@@ -76,7 +76,7 @@ const COLORS = ["#e74c3c", "#2980b9", "#27ae60", "#8e44ad", "#e67e22", "#607d8b"
 
 // ── Boot ─────────────────────────────────────────────────────
 store.onAuth((user) => {
-  if (user) { showApp(); subscribe(); loadSettings(); }
+  if (user) { showApp(); subscribe(); loadSettings(); store.upsertUnifiedUser(user).catch(() => {}); }
   else { showLogin(); teardown(); }
 });
 

@@ -10,19 +10,17 @@
 //  5. Replace the placeholder values below with your own.
 // ============================================================
 
-// ⚠️ TODO (personal-suite migration — see personal-suite/MIGRATION.md, Phase 2):
-// Paste the NEW "personal-suite-hardware" web-app config here once you've created
-// the personal-suite project and its Web App. Until then these are placeholders and
-// the app will NOT connect. The collection layer (store.js) already targets the
-// namespaced hw_* collections.
+// personal-suite consolidation — points at the shared project personal-suite-ca587
+// (hardware-tracker Web App). The collection layer (store.js) targets the
+// namespaced hw_* collections. apiKey is not a secret — safe to commit.
 export const firebaseConfig = {
-  apiKey:            "REPLACE_ME_personal_suite_hardware",
-  authDomain:        "personal-suite.firebaseapp.com",
-  projectId:         "personal-suite",
-  storageBucket:     "personal-suite.firebasestorage.app",
-  messagingSenderId: "REPLACE_ME",
-  appId:             "REPLACE_ME",
-  measurementId:     "REPLACE_ME",
+  apiKey:            "AIzaSyAtRLYEN30W1eL4EwiRGN4x_oOzI-HlJZQ",
+  authDomain:        "personal-suite-ca587.firebaseapp.com",
+  projectId:         "personal-suite-ca587",
+  storageBucket:     "personal-suite-ca587.firebasestorage.app",
+  messagingSenderId: "894530323591",
+  appId:             "1:894530323591:web:5abe5929c3554e6afc6422",
+  measurementId:     "G-FK4JCT57MK",
 };
 
 // Previous project config (hardware-tracker-a99c6) — kept for reference/rollback only:
